@@ -180,6 +180,7 @@ module d1spfifo
          addr_buf <= 0;
          data_buf <= 0;
          indi_buf <= 0;
+         ren_d <= 0;
       end
       else begin
          rd_ptr <= rd_ptr_w;
@@ -187,6 +188,7 @@ module d1spfifo
          addr_buf <= addr_buf_w;
          data_buf <= data_buf_w;
          indi_buf <= indi_buf_w;
+         ren_d <= {ren1, ren0};
       end
    end
 endmodule
