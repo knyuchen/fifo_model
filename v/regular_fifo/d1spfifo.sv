@@ -58,11 +58,95 @@ module d1spfifo
    assign rd_ptr_w = (ren == 1) ? rd_ptr + 1 : rd_ptr;
    
    assign ack   = (ACK   == 1) ? wen : 0;
-   assign valid = (VALID == 1) ? ren : 0;
   
    logic  wen0, wen1, ren0, ren1;
    logic  [$clog2(SIZE) - 2 : 0] waddr0, waddr1, raddr0, raddr1;
    logic  [WIDTH - 1 : 0] wdata0, wdata1, rdata0, rdata1;
+
+   assign ren0 = (raddr[0] == 0) ? ren : 0;
+   assign ren1 = (raddr[0] == 1) ? ren : 0;
+   assign raddr0 = (ren0 == 1) ? raddr[$clog2(SIZE) - 1 : 1];
+   assign raddr1 = (ren1 == 1) ? raddr[$clog2(SIZE) - 1 : 1];
+
+   logic  [1:0] ren_d;
+   assign valid = (VALID == 1) ? (ren_d != 0) : 0;
+
+   assign rdata = (ren_d[1] == 1) ? rdata1 : ((ren_d[0] == 1) ? rdata0 : 0)
+  
+   logic [$clog2(SIZE) - 2 : 0] addr_buf, addr_buf_w;
+   logic [WIDTH - 1 : 0] data_buf, data_buf_w;
+   logic [1:0]  indi_buf, indi_buf_w;
+   logic buf_0, buf_1, clean_0, clean_1;  
+
+
+   always_comb begin
+      wen0 = 0;
+      waddr0 = 0;
+      wdata0 = 0;
+      buf_0 = 0;
+      clean_0 = 0;
+      if (wen == 1 && waddr[0] == 0) begin
+         if (ren0 == 1) begin
+            buf_0 = 1;
+         end
+         else begin
+            wen0 = 1;
+            waddr0 = waddr[$clog2(SIZE) - 1 : 1];
+            wdata0 = wdata;
+         end
+      end
+      else if (indi_buf[0] == 1) begin
+         clean_0 = 1;
+         wen0 = 1;
+         wdata0 = data_buf;
+         waddr0 = addr_buf;
+      end
+   end
+   
+   always_comb begin
+      wen1 = 0;
+      waddr1 = 0;
+      wdata1 = 0;
+      buf_1 = 0;
+      clean_1 = 0;
+      if (wen == 1 && waddr[0] == 1) begin
+         if (ren1 == 1) begin
+            buf_1 = 1;
+         end
+         else begin
+            wen1 = 1;
+            waddr1 = waddr[$clog2(SIZE) - 1 : 1];
+            wdata1 = wdata;
+         end
+      end
+      else if (indi_buf[1] == 1) begin
+         clean_1 = 1;
+         wen1 = 1;
+         wdata1 = data_buf;
+         waddr1 = addr_buf;
+      end
+   end
+   
+   always_comb begin
+      data_buf_w = data_buf;
+      addr_buf_w = addr_buf;
+      indi_buf_w = indi_buf;
+      if (buf_0 == 1 || buf_1 == 1) begin
+         data_buf_w = wdata;
+         addr_buf_w = waddr[$clog2(SIZE) - 1 : 1];
+      end
+      case ({buf_1, buf_0, clean_1, clean_0})
+         0001: indi_buf_w = 2'b00;
+         0010: indi_buf_w = 2'b00;
+         0100: indi_buf_w = 2'b01;
+         0110: indi_buf_w = 2'b01;
+         1001: indi_buf_w = 2'b10;
+         1000: indi_buf_w = 2'b10;
+         default: begin
+         end
+      endcase 
+   end
+
 
  
    d0spram 
@@ -87,14 +171,22 @@ module d1spfifo
     .rdata(rdata1)
    ); 
 
+
+
    always_ff @ (posedge clk or negedge rst_n) begin
       if (rst_n == 0) begin
          rd_ptr <= 0;
          wr_ptr <= 0;
+         addr_buf <= 0;
+         data_buf <= 0;
+         indi_buf <= 0;
       end
       else begin
          rd_ptr <= rd_ptr_w;
          wr_ptr <= wr_ptr_w;
+         addr_buf <= addr_buf_w;
+         data_buf <= data_buf_w;
+         indi_buf <= indi_buf_w;
       end
    end
 endmodule
