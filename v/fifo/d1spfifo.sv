@@ -1,7 +1,8 @@
-module d0fifo 
+module d1spfifo 
 #(
    parameter WIDTH = 16,
    parameter SIZE  = 32,
+   parameter SRAM  = 1,
    parameter FULL  = 1,
    parameter EMPTY = 1,
    parameter AL_FULL = 2,
@@ -58,8 +59,33 @@ module d0fifo
    
    assign ack   = (ACK   == 1) ? wen : 0;
    assign valid = (VALID == 1) ? ren : 0;
+  
+   logic  wen0, wen1, ren0, ren1;
+   logic  [$clog2(SIZE) - 2 : 0] waddr0, waddr1, raddr0, raddr1;
+   logic  [WIDTH - 1 : 0] wdata0, wdata1, rdata0, rdata1;
 
-   d0ram #(.WIDTH(WIDTH), .SIZE(SIZE)) d1 (.*); 
+ 
+   d0spram 
+   #(.WIDTH(WIDTH), .SIZE(SIZE/2), .SRAM(SRAM)) d0 
+   (.*,
+    .wen(wen0),
+    .ren(ren0),
+    .waddr(waddr0),
+    .raddr(raddr0),
+    .wdata(wdata0),
+    .rdata(rdata0)
+   ); 
+
+   d1spram 
+   #(.WIDTH(WIDTH), .SIZE(SIZE/2), .SRAM(SRAM)) d1 
+   (.*,
+    .wen(wen1),
+    .ren(ren1),
+    .waddr(waddr1),
+    .raddr(raddr1),
+    .wdata(wdata1),
+    .rdata(rdata1)
+   ); 
 
    always_ff @ (posedge clk or negedge rst_n) begin
       if (rst_n == 0) begin
