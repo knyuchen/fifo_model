@@ -149,7 +149,7 @@ module d1spfifo
 
 
  
-   d0spram 
+   d1spram 
    #(.WIDTH(WIDTH), .SIZE(SIZE/2), .SRAM(SRAM)) d0 
    (.*,
     .wen(wen0),
