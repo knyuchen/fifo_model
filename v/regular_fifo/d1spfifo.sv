@@ -71,7 +71,7 @@ module d1spfifo
    logic  [1:0] ren_d;
    assign valid = (VALID == 1) ? (ren_d != 0) : 0;
 
-   assign rdata = (ren_d[1] == 1) ? rdata1 : ((ren_d[0] == 1) ? rdata0 : 0)
+   assign rdata = (ren_d[1] == 1) ? rdata1 : ((ren_d[0] == 1) ? rdata0 : 0);
   
    logic [$clog2(SIZE) - 2 : 0] addr_buf, addr_buf_w;
    logic [WIDTH - 1 : 0] data_buf, data_buf_w;
