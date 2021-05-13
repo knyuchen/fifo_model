@@ -7,13 +7,15 @@ module d0fifo
    parameter AL_FULL = 2,
    parameter AL_EMPTY = 2,
    parameter ACK   = 1,
-   parameter VALID = 1
+   parameter VALID = 1,
+   parameter FLUSH = 1
 )
 (
    input                          clk,
    input                          rst_n,
    input                          push,
    input                          pop,
+   input                          flush,
    input         [WIDTH - 1 : 0]  wdata,
    output  logic [WIDTH - 1 : 0]  rdata,
    output  logic                  full,
@@ -38,7 +40,11 @@ module d0fifo
          wr_ptr_cal = wr_ptr;
       end
    end
-   
+  
+   logic  real_flush;
+
+   assign real_flush = (FLUSH == 1) ? flush : 0;
+ 
    assign diff        = wr_ptr_cal - rd_ptr_cal;
    assign empty       = (EMPTY == 1)    ? (diff == 0)           : 0;
    assign full        = (FULL  == 1)    ? (diff == SIZE)        : 0;
@@ -48,14 +54,14 @@ module d0fifo
    logic  wen, ren, corner;
    logic [$clog2(SIZE) - 1 : 0]  waddr, raddr; 
 
-   assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1));
-   assign ren         = pop  == 1 && empty != 1;
-   assign corner      = empty == 1 && push == 1 && pop == 1;
+   assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1)) && real_flush == 0;
+   assign ren         = pop  == 1 && empty != 1 && real_flush == 0;
+   assign corner      = empty == 1 && push == 1 && pop == 1 && real_flush == 0;
    assign waddr       = (wen == 1) ? wr_ptr[$clog2(SIZE) - 1 : 0];
    assign raddr       = (ren == 1) ? rd_ptr[$clog2(SIZE) - 1 : 0];
 
-   assign wr_ptr_w = (wen == 1) ? wr_ptr + 1 : wr_ptr;
-   assign rd_ptr_w = (ren == 1) ? rd_ptr + 1 : rd_ptr;
+   assign wr_ptr_w = (real_flush == 1) ? 0 : ((wen == 1) ? wr_ptr + 1 : wr_ptr);
+   assign rd_ptr_w = (real_flush == 1) ? 0 : ((ren == 1) ? rd_ptr + 1 : rd_ptr);
    
    assign ack   = (ACK   == 1) ? wen : 0;
    assign valid = (VALID == 1) ? (ren == 1 || corner == 1) : 0;

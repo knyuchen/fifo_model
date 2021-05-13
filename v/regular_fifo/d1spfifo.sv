@@ -11,7 +11,8 @@ module d1spfifo
    parameter AL_FULL = 2,
    parameter AL_EMPTY = 2,
    parameter ACK   = 1,
-   parameter VALID = 1
+   parameter VALID = 1,
+   parameter FLUSH = 1
 )
 (
    input                          clk,
@@ -31,6 +32,9 @@ module d1spfifo
    logic [$clog2(SIZE) : 0]             wr_ptr, wr_ptr_w;
    logic [$clog2(SIZE) : 0]             rd_ptr_cal, wr_ptr_cal;
    logic [$clog2(SIZE) : 0]             diff;
+
+   logic real_flush;
+   assign real_flush = (FLUSH == 1) flush : 0;
 
    always_comb begin
       if (rd_ptr_cal[$clog2(SIZE)] ^ wr_ptr_cal[$clog2(SIZE)] == 1) begin
@@ -52,14 +56,14 @@ module d1spfifo
    logic  wen, ren, corner;
    logic [$clog2(SIZE) - 1 : 0]  waddr, raddr; 
 
-   assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1));
-   assign ren         = pop  == 1 && empty != 1;
-   assign corner      = push == 1 && pop == 1 && empty == 1;
+   assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1)) && real_flush == 0;
+   assign ren         = pop  == 1 && empty != 1 && real_flush == 0;
+   assign corner      = push == 1 && pop == 1 && empty == 1 && real_flush == 0;
    assign waddr       = (wen == 1) ? wr_ptr[$clog2(SIZE) - 1 : 0];
    assign raddr       = (ren == 1) ? rd_ptr[$clog2(SIZE) - 1 : 0];
 
-   assign wr_ptr_w = (wen == 1) ? wr_ptr + 1 : wr_ptr;
-   assign rd_ptr_w = (ren == 1) ? rd_ptr + 1 : rd_ptr;
+   assign wr_ptr_w = (real_flush == 1) ? 0 : ((wen == 1) ? wr_ptr + 1 : wr_ptr);
+   assign rd_ptr_w = (real_flush == 1) ? 0 : ((ren == 1) ? rd_ptr + 1 : rd_ptr);
    
    assign ack   = (ACK   == 1) ? wen : 0;
   
@@ -77,9 +81,9 @@ module d1spfifo
    logic  [2:0] ren_d;
    logic  [WIDTH - 1 : 0] wdata_d, wdata_dw;
    assign wdata_dw  = (corner == 1) wdata : 0;
-   assign valid_pre = (VALID == 1) ? (ren_d != 0) : 0;
+   assign valid_pre = (VALID == 1) ? (ren_d != 0 && real_flush == 0) : 0;
 
-   assign rdata_pre = (ren_d[2] == 1)? wdata_d : ((ren_d[1] == 1) ? rdata1 : ((ren_d[0] == 1) ? rdata0 : 0));
+   assign rdata_pre = (real_flush == 1) ? 0 : ((ren_d[2] == 1)? wdata_d : ((ren_d[1] == 1) ? rdata1 : ((ren_d[0] == 1) ? rdata0 : 0)));
   
    logic [$clog2(SIZE) - 2 : 0] addr_buf, addr_buf_w;
    logic [WIDTH - 1 : 0] data_buf, data_buf_w;
@@ -103,7 +107,7 @@ module d1spfifo
             wdata0 = wdata;
          end
       end
-      else if (indi_buf[0] == 1) begin
+      else if (indi_buf[0] == 1 && real_flush == 0) begin
          clean_0 = 1;
          wen0 = 1;
          wdata0 = data_buf;
@@ -127,7 +131,7 @@ module d1spfifo
             wdata1 = wdata;
          end
       end
-      else if (indi_buf[1] == 1) begin
+      else if (indi_buf[1] == 1 && real_flush == 0) begin
          clean_1 = 1;
          wen1 = 1;
          wdata1 = data_buf;
@@ -139,7 +143,7 @@ module d1spfifo
       data_buf_w = data_buf;
       addr_buf_w = addr_buf;
       indi_buf_w = indi_buf;
-      if (buf_0 == 1 || buf_1 == 1) begin
+      if ((buf_0 == 1 || buf_1 == 1) && real_flush == 0) begin
          data_buf_w = wdata;
          addr_buf_w = waddr[$clog2(SIZE) - 1 : 1];
       end
