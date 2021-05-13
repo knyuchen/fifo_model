@@ -1,7 +1,7 @@
 /*
    The data will come out one cycle later, so 2 stage pipeline is needed on the outside
 */
-module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1) (
+module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1, FLUSH = 1) (
    input                                clk,
    input                                rst_n,
    input          [DATA_WIDTH - 1 : 0]  data_in,
@@ -21,6 +21,10 @@ module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1) (
    assign data_out = rdata;
    assign wdata =  data_in;
 
+   logic real_flush;
+
+   assign real_flush = (FLUSH == 1) ? flush : 0;
+
    d1spfifo #(
       .WIDTH (WIDTH),
       .SIZE (MAX_DELAY),
@@ -30,8 +34,9 @@ module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1) (
       .AL_FULL(0),
       .AL_EMPTY(0),
       .ACK(0),
-      .VALID(1) 
-   ) df1 (.*);
+      .VALID(1),
+      .FLUSH(FLUSH) 
+   ) df1 (.*, .flush(real_flush));
  
    logic  flag, flag_w;
    logic  [$clog2(MAX_DELAY) - 1 : 0]  count, count_w;
@@ -53,7 +58,7 @@ module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1) (
       count_w = count;
       push = 0;
       pop = 0;
-      if (flush == 1) begin
+      if (real_flush == 1) begin
          flag_w = 0;
          count_w = 0;
       end
