@@ -1,3 +1,6 @@
+/*
+  SRAM delays 1 cycle, but fifo read is two cycle
+*/
 module d1spfifo 
 #(
    parameter WIDTH = 16,
@@ -46,11 +49,12 @@ module d1spfifo
    assign al_empty    = (AL_EMPTY != 0) ? (diff == AL_EMPTY)    : 0;
    assign al_full     = (AL_FULL  != 0) ? (diff == AL_FULL)     : 0;
 
-   logic  wen, ren;
+   logic  wen, ren, corner;
    logic [$clog2(SIZE) - 1 : 0]  waddr, raddr; 
 
-   assign wen         = push == 1 && full  != 1;
+   assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1));
    assign ren         = pop  == 1 && empty != 1;
+   assign corner      = push == 1 && pop == 1 && empty == 1;
    assign waddr       = (wen == 1) ? wr_ptr[$clog2(SIZE) - 1 : 0];
    assign raddr       = (ren == 1) ? rd_ptr[$clog2(SIZE) - 1 : 0];
 
@@ -61,17 +65,21 @@ module d1spfifo
   
    logic  wen0, wen1, ren0, ren1;
    logic  [$clog2(SIZE) - 2 : 0] waddr0, waddr1, raddr0, raddr1;
-   logic  [WIDTH - 1 : 0] wdata0, wdata1, rdata0, rdata1;
+   logic  [WIDTH - 1 : 0] wdata0, wdata1, rdata0, rdata1, rdata_pre;
+
+   logic  valid_pre;
 
    assign ren0 = (raddr[0] == 0) ? ren : 0;
    assign ren1 = (raddr[0] == 1) ? ren : 0;
    assign raddr0 = (ren0 == 1) ? raddr[$clog2(SIZE) - 1 : 1];
    assign raddr1 = (ren1 == 1) ? raddr[$clog2(SIZE) - 1 : 1];
 
-   logic  [1:0] ren_d;
-   assign valid = (VALID == 1) ? (ren_d != 0) : 0;
+   logic  [2:0] ren_d;
+   logic  [WIDTH - 1 : 0] wdata_d, wdata_dw;
+   assign wdata_dw  = (corner == 1) wdata : 0;
+   assign valid_pre = (VALID == 1) ? (ren_d != 0) : 0;
 
-   assign rdata = (ren_d[1] == 1) ? rdata1 : ((ren_d[0] == 1) ? rdata0 : 0);
+   assign rdata_pre = (ren_d[2] == 1)? wdata_d : ((ren_d[1] == 1) ? rdata1 : ((ren_d[0] == 1) ? rdata0 : 0));
   
    logic [$clog2(SIZE) - 2 : 0] addr_buf, addr_buf_w;
    logic [WIDTH - 1 : 0] data_buf, data_buf_w;
@@ -181,6 +189,8 @@ module d1spfifo
          data_buf <= 0;
          indi_buf <= 0;
          ren_d <= 0;
+         rdata <= 0;
+         wdata_d <= 0;
       end
       else begin
          rd_ptr <= rd_ptr_w;
@@ -188,7 +198,9 @@ module d1spfifo
          addr_buf <= addr_buf_w;
          data_buf <= data_buf_w;
          indi_buf <= indi_buf_w;
-         ren_d <= {ren1, ren0};
+         ren_d <= {corner, ren1, ren0};
+         rvalid <= rvalid_pre;
+         wdata_d <= wdata_dw;
       end
    end
 endmodule

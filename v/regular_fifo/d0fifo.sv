@@ -45,11 +45,12 @@ module d0fifo
    assign al_empty    = (AL_EMPTY != 0) ? (diff == AL_EMPTY)    : 0;
    assign al_full     = (AL_FULL  != 0) ? (diff == AL_FULL)     : 0;
 
-   logic  wen, ren;
+   logic  wen, ren, corner;
    logic [$clog2(SIZE) - 1 : 0]  waddr, raddr; 
 
-   assign wen         = push == 1 && full  != 1;
+   assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1));
    assign ren         = pop  == 1 && empty != 1;
+   assign corner      = empty == 1 && push == 1 && pop == 1;
    assign waddr       = (wen == 1) ? wr_ptr[$clog2(SIZE) - 1 : 0];
    assign raddr       = (ren == 1) ? rd_ptr[$clog2(SIZE) - 1 : 0];
 
@@ -57,9 +58,14 @@ module d0fifo
    assign rd_ptr_w = (ren == 1) ? rd_ptr + 1 : rd_ptr;
    
    assign ack   = (ACK   == 1) ? wen : 0;
-   assign valid = (VALID == 1) ? ren : 0;
+   assign valid = (VALID == 1) ? (ren == 1 || corner == 1) : 0;
 
-   d0ram #(.WIDTH(WIDTH), .SIZE(SIZE)) d1 (.*); 
+   logic [WIDTH - 1 : 0] rdata_ram;
+
+   assign rdata = (corner == 1) wdata : rdata_ram;
+
+
+   d0ram #(.WIDTH(WIDTH), .SIZE(SIZE)) d1 (.*, .rdata (rdata_ram)); 
 
    always_ff @ (posedge clk or negedge rst_n) begin
       if (rst_n == 0) begin
