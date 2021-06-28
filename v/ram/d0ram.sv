@@ -23,6 +23,7 @@ module d0ram
 
    logic [SIZE - 1 : 0][WIDTH - 1 : 0] entry, entry_w;
    assign rdata = (ren == 1) ? entry[raddr] : 0;
+// assign rdata = entry[raddr];
    
    always_comb begin
       entry_w = entry;

@@ -18,27 +18,25 @@ module d1spram
    input  [WIDTH - 1 : 0]         wdata,
    output logic [WIDTH - 1 : 0]   rdata
 );
-   logic [SIZE - 1 : 0][WIDTH - 1 : 0] entry, entry_w;
-   logic real_ren, real_wen;
-   logic [WIDTH - 1 : 0]rdata_w;
 
 
    generate 
       if (SRAM == 0) begin
+         logic real_wen, real_ren;
+         logic [$clog2(SIZE) - 1 : 0] addr;
+         assign addr = (real_wen == 1) ? waddr : raddr;
          assign real_wen = wen;
          assign real_ren = (real_wen == 0) ? ren : 0;
-         assign rdata_w  = (real_ren == 1) ? entry[raddr] : 0;
-         always_comb begin
-            entry_w = entry;
-            if (real_wen == 1) entry_w [waddr] = wdata;
-         end
- 
-         always_ff @ (posedge clk or negedge rst_n) begin
-            entry <= entry_w;
-            rdata <= rdata_w;
-         end
-
+         ram #(.DATA_WIDTH(WIDTH), .MEM_SIZE(SIZE)) r1 
+              (
+                 .*,
+                 .enable_write(wen),
+                 .enable_read(ren),
+                 .ctrl_write(wen),
+                 .data_write(wdata),
+                 .data_read(rdata)
+              );
       end else begin
-         spsram s1 #(.WIDTH(WIDTH), .SIZE(SIZE)) (.*);
+         spsram #(.WIDTH(WIDTH), .SIZE(SIZE))s1 (.*);
    end endgenerate 
 endmodule
