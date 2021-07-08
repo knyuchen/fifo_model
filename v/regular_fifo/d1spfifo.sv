@@ -57,7 +57,7 @@ module d1spfifo
    logic  wen, ren, corner;
    logic [$clog2(SIZE) - 1 : 0]  waddr, raddr; 
 
-   assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1)) && real_flush == 0;
+   assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1)) && real_flush == 0 && corner == 0;
    assign ren         = pop  == 1 && empty != 1 && real_flush == 0;
    assign corner      = push == 1 && pop == 1 && empty == 1 && real_flush == 0;
    assign waddr       = (wen == 1) ? wr_ptr[$clog2(SIZE) - 1 : 0] : 0;
@@ -149,12 +149,12 @@ module d1spfifo
          addr_buf_w = waddr[$clog2(SIZE) - 1 : 1];
       end
       case ({buf_1, buf_0, clean_1, clean_0})
-         0001: indi_buf_w = 2'b00;
-         0010: indi_buf_w = 2'b00;
-         0100: indi_buf_w = 2'b01;
-         0110: indi_buf_w = 2'b01;
-         1001: indi_buf_w = 2'b10;
-         1000: indi_buf_w = 2'b10;
+         4'b0001: indi_buf_w = 2'b00;
+         4'b0010: indi_buf_w = 2'b00;
+         4'b0100: indi_buf_w = 2'b01;
+         4'b0110: indi_buf_w = 2'b01;
+         4'b1001: indi_buf_w = 2'b10;
+         4'b1000: indi_buf_w = 2'b10;
          default: begin
          end
       endcase 
