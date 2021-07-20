@@ -1,8 +1,9 @@
 module bitrev_fifo #
 (  parameter DATA_WIDTH = 32,
-             MAX_POINT  = 64,
-             FULL       = 1,
-             EMPTY      = 1
+   parameter MAX_POINT  = 64,
+   parameter FULL       = 1,
+   parameter EMPTY      = 1,
+   parameter SRAM       = 0
 )
 (
    input   [$clog2($clog2(MAX_POINT)) - 1 : 0]  point,
@@ -12,8 +13,7 @@ module bitrev_fifo #
    output logic                 valid,
    input                        pop,
    output logic                 full,
-   output logic                 empty,
-   output logic                 clean_bank    
+   output logic                 empty
 );
 
    logic [$clog2(MAX_POINT) - 1 : 0] mem_counter, mem_counter_w;
@@ -232,12 +232,10 @@ module bitrev_fifo #
       if (rst_n == 0) begin
          read_pattern <= 0;
          data_out     <= 0;
-         clean_bank   <= 0;
       end
       else begin
          read_pattern <= read_pattern_w;
          data_out     <= data_out_w;
-         clean_bank   <= finish_read_0 || finish_read_1;
       end
    end
 endmodule
