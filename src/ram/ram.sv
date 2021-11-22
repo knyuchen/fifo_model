@@ -1,18 +1,4 @@
-/*************************************************************************/
-// Module       : RAM
-// Description  : Register files simulate SRAM's behavior actually, 
-//                but can be synthesised as block RAM in FPGA.
-//                  
-// Date         : 01/26/19
-// Author       : Kuan-Yu Chen   
-// Modified     : Chi-Sheng Yang (modified to single-port sram)
-/*************************************************************************/
-
-
-`ifndef _RAM_V_
-`define _RAM_V_
-
-module ram
+module fpga_ram
 #(
    parameter DATA_WIDTH  = 16, 
    parameter MEM_SIZE    = 1024,
@@ -28,11 +14,7 @@ module ram
    output logic signed  [DATA_WIDTH - 1 : 0]  data_read
 );
 
-`ifdef FPGA
    (* ram_style = "block" *) logic [DATA_WIDTH - 1 : 0] mem [MEM_SIZE - 1 : 0];
-`else
-   logic [DATA_WIDTH - 1 : 0] mem [MEM_SIZE - 1 : 0];
-`endif
 
    always @(posedge clk) begin
       if (enable_write) begin
@@ -50,4 +32,3 @@ module ram
 
 endmodule
 
-`endif

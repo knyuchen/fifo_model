@@ -1,23 +1,25 @@
 /*
-   The data will come out one cycle later, so 2 stage pipeline is needed on the outside
+  Latency is always 2 cycles for d1spfifo, 2 cycles of pipeline is needed from the outside
+  Revisions:
+    10/13/21:
+      First Documentation
 */
-module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1, FLUSH = 1) (
+module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = `FIR_SRAM, FLUSH = 1) (
    input                                clk,
    input                                rst_n,
-   input          [DATA_WIDTH - 1 : 0]  data_in,
+   input          [WIDTH - 1 : 0]  data_in,
    input                                valid_in,
    output  logic                        valid_out,
-   output  logic  [DATA_WIDTH - 1 : 0]  data_out,
+   output  logic  [WIDTH - 1 : 0]  data_out,
    input                                flush,
    input          [$clog2(MAX_DELAY) - 1 : 0]  delay
 );
 
    logic push, pop;
    logic [WIDTH - 1 : 0] wdata, rdata;
-   logic [WIDTH - 1 : 0] data_out_pre;
    logic full, empty, al_full, al_empty, ack, valid;
 
-   assign valid_out = valid_in;
+   assign valid_out = valid;
    assign data_out = rdata;
    assign wdata =  data_in;
 
@@ -30,7 +32,7 @@ module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1, FLUSH = 1
       .SIZE (MAX_DELAY),
       .SRAM(SRAM),
       .FULL(0),
-      .EMPTY(0),
+      .EMPTY(1),
       .AL_FULL(0),
       .AL_EMPTY(0),
       .ACK(0),
@@ -64,11 +66,13 @@ module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1, FLUSH = 1
       end
       else if (valid_in == 1) begin
          if (flag == 0) begin
+/*
             if (delay == 0) begin
                push = 1;
                pop  = 1;
             end
-            else begin
+*/
+//            else begin
                if (count != delay) begin
                   count_w = count + 1;
                   push = 1; 
@@ -77,8 +81,9 @@ module delay_buffer #(parameter MAX_DELAY = 128, WIDTH = 32, SRAM = 1, FLUSH = 1
                   count_w = 0;
                   push = 1;
                   pop = 1;
+                  flag_w = 1;
                end
-            end
+//            end
          end
          else begin
             push = 1;

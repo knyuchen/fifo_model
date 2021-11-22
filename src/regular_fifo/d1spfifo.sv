@@ -1,5 +1,13 @@
 /*
   SRAM delays 1 cycle, but fifo read is two cycle
+  expects SIZE to be multiple of 2
+  Needs to Ping-Pong between 2
+
+  Collision handling
+     favors read over write, must ensure timing correctness
+     write is done in the same cycle, the next read must be to another bank
+   Revisions:
+      10/08/21: First Documentation, change some logic to make sure it handles SIZE != 2**N
 */
 module d1spfifo 
 #(
@@ -37,38 +45,67 @@ module d1spfifo
    logic real_flush;
    assign real_flush = (FLUSH == 1) ? flush : 0;
 
+/*
+  Readjustment to make sure that wr_ptr > rd_ptr
+  Not an elegant implementation but seems to be the only way to accomadate for depth not 2**N
+*/
    always_comb begin
-      if (rd_ptr[$clog2(SIZE)] ^ wr_ptr[$clog2(SIZE)] == 1) begin
-         rd_ptr_cal = {1'b0, rd_ptr[$clog2(SIZE) - 1 : 0]};
-         wr_ptr_cal = {1'b1, wr_ptr[$clog2(SIZE) - 1 : 0]};
+      if (rd_ptr > wr_ptr) begin
+         rd_ptr_cal = rd_ptr - SIZE;
+         wr_ptr_cal = wr_ptr + SIZE;
       end
       else begin
-         rd_ptr_cal = rd_ptr;
-         wr_ptr_cal = wr_ptr;
+       wr_ptr_cal = wr_ptr;
+       rd_ptr_cal = rd_ptr;
       end
    end
    
    assign diff        = wr_ptr_cal - rd_ptr_cal;
    assign empty       = (EMPTY == 1)    ? (diff == 0)           : 0;
    assign full        = (FULL  == 1)    ? (diff == SIZE)        : 0;
-   assign al_empty    = (AL_EMPTY != 0) ? (diff == AL_EMPTY)    : 0;
-   assign al_full     = (AL_FULL  != 0) ? (diff == AL_FULL)     : 0;
+   assign al_empty    = (AL_EMPTY != 0) ? ((diff == AL_EMPTY) || (diff < AL_EMPTY))    : 0;
+   assign al_full     = (AL_FULL  != SIZE) ? ((diff == AL_FULL) || (diff > AL_FULL))     : 0;
 
    logic  wen, ren, corner;
    logic [$clog2(SIZE) - 1 : 0]  waddr, raddr; 
 
+/*
+   full replace & no empty feedthrough
+*/
    assign wen         = push == 1 && (full  != 1 || (full == 1 && pop == 1)) && real_flush == 0 && corner == 0;
    assign ren         = pop  == 1 && empty != 1 && real_flush == 0;
    assign corner      = push == 1 && pop == 1 && empty == 1 && real_flush == 0;
-   assign waddr       = (wen == 1) ? wr_ptr[$clog2(SIZE) - 1 : 0] : 0;
-   assign raddr       = (ren == 1) ? rd_ptr[$clog2(SIZE) - 1 : 0] : 0;
+   assign waddr       = (wen == 0) ? 0 : ((wr_ptr > SIZE - 1) ? wr_ptr - SIZE : wr_ptr);
+   assign raddr       = (ren == 0) ? 0 : ((rd_ptr > SIZE - 1) ? rd_ptr - SIZE : rd_ptr);
 
-   assign wr_ptr_w = (real_flush == 1) ? 0 : ((wen == 1) ? wr_ptr + 1 : wr_ptr);
-   assign rd_ptr_w = (real_flush == 1) ? 0 : ((ren == 1) ? rd_ptr + 1 : rd_ptr);
+   always_comb begin
+      rd_ptr_w = rd_ptr;
+      wr_ptr_w = wr_ptr;
+      if (real_flush == 1) begin
+         wr_ptr_w = 0;
+         rd_ptr_w = 0;
+      end
+      else begin
+/*
+  More restrictions than just ren because of PEEK
+*/
+      if (ren == 1) begin
+         if (rd_ptr == 2*SIZE - 1) rd_ptr_w = 0;
+         else rd_ptr_w = rd_ptr + 1;
+      end
+      if (wen == 1) begin
+         if (wr_ptr == 2*SIZE - 1) wr_ptr_w = 0;
+         else wr_ptr_w = wr_ptr + 1;
+      end
+      end
+   end
    
-   assign ack   = (ACK   == 1) ? wen : 0;
+   assign ack   = (ACK   == 1) ? (((wen == 1) || (corner == 1)) && real_flush == 1)  : 0;
   
    logic  wen0, wen1, ren0, ren1;
+/*
+   addr to each bank is halved to support ping-pong
+*/
    logic  [$clog2(SIZE) - 2 : 0] waddr0, waddr1, raddr0, raddr1;
    logic  [WIDTH - 1 : 0] wdata0, wdata1, rdata0, rdata1, rdata_pre;
 
@@ -78,14 +115,24 @@ module d1spfifo
    assign ren1 = (raddr[0] == 1) ? ren : 0;
    assign raddr0 = (ren0 == 1) ? raddr[$clog2(SIZE) - 1 : 1] : 0;
    assign raddr1 = (ren1 == 1) ? raddr[$clog2(SIZE) - 1 : 1] : 0;
-
+/*
+   indicating which bank to read from
+   [2] : bypass corner case
+   [1] : bank 1
+   [0] : bank 0
+*/
    logic  [2:0] ren_d;
+/*
+   pipelining wdata in case of empty feedthrough
+*/
    logic  [WIDTH - 1 : 0] wdata_d, wdata_dw;
    assign wdata_dw  = (corner == 1) ?  wdata : 0;
    assign valid_pre = (VALID == 1) ? (ren_d != 0 && real_flush == 0) : 0;
 
    assign rdata_pre = (real_flush == 1) ? 0 : ((ren_d[2] == 1)? wdata_d : ((ren_d[1] == 1) ? rdata1 : ((ren_d[0] == 1) ? rdata0 : 0)));
-  
+/*
+   solving collision
+*/  
    logic [$clog2(SIZE) - 2 : 0] addr_buf, addr_buf_w;
    logic [WIDTH - 1 : 0] data_buf, data_buf_w;
    logic [1:0]  indi_buf, indi_buf_w;
@@ -99,6 +146,9 @@ module d1spfifo
       buf_0 = 0;
       clean_0 = 0;
       if (wen == 1 && waddr[0] == 0) begin
+/*
+  favors read when there is collision
+*/
          if (ren0 == 1) begin
             buf_0 = 1;
          end
@@ -108,6 +158,9 @@ module d1spfifo
             wdata0 = wdata;
          end
       end
+/*
+  write in buffered value
+*/
       else if (indi_buf[0] == 1 && real_flush == 0) begin
          clean_0 = 1;
          wen0 = 1;
@@ -139,7 +192,9 @@ module d1spfifo
          waddr1 = addr_buf;
       end
    end
-   
+/*
+   Cleaning of buffer
+*/   
    always_comb begin
       data_buf_w = data_buf;
       addr_buf_w = addr_buf;
