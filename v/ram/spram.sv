@@ -35,14 +35,21 @@ module spram
   
    always_ff @ (posedge clk or negedge rst_n) begin
       if (rst_n == 0) begin
+`ifdef APR
          entry <= 0;
+`endif
          rdata <= 0;
       end
       else begin
+`ifdef APR
          entry <= entry_w;
+`endif
          rdata <= rdata_pre;
       end
    end
-
-
+`ifndef APR
+   always_ff @ (posedge clk) begin
+      entry <= entry_w;
+   end
+`endif
 endmodule 
